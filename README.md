@@ -70,7 +70,16 @@ poetry install
 
 ### 3. Get Trained Model
 
-**Option A: Train Your Own (Recommended)**
+**Option A: Kaggle Training (Recommended - Easiest)**
+
+1. Go to [kaggle.com/code](https://kaggle.com/code) and create a new notebook
+2. Enable GPU (Settings > Accelerator > GPU T4)
+3. Add dataset: "140k real and fake faces" by xhlulu
+4. Copy `training/train_kaggle.py` content and run it
+5. Download `model.pth` from `/kaggle/working/`
+6. Place `model.pth` in your project root
+
+**Option B: Google Colab Training**
 
 See [Training Guide](docs/TRAINING.md) for detailed instructions.
 
@@ -78,11 +87,11 @@ Quick version:
 1. Open [Google Colab](https://colab.research.google.com/)
 2. Enable GPU: Runtime > Change runtime type > GPU
 3. Upload `training/train_model.py`
-4. Download the GRAVEX-200K dataset from Kaggle
+4. Download the dataset from Kaggle
 5. Run the script
 6. Download `model.pth` and place in project root
 
-**Option B: Use Pre-trained Weights**
+**Option C: Use Pre-trained Weights**
 
 Download pre-trained weights from [Releases](https://github.com/furkankoykiran/ai-face-detector/releases) (coming soon).
 
@@ -140,7 +149,8 @@ AI-Face-Detector/
 ├── data/
 │   └── setup_dataset.py     # Kaggle dataset download script
 ├── training/
-│   ├── train_model.py       # Standalone training script (cloud-ready)
+│   ├── train_model.py       # Generic training script
+│   ├── train_kaggle.py      # Kaggle-specific training script (recommended)
 │   └── train_colab.ipynb    # Jupyter notebook (optional)
 ├── static/
 │   └── index.html           # Frontend UI with Tailwind CSS
@@ -159,11 +169,13 @@ AI-Face-Detector/
 
 ### Dataset
 
-We use the **GRAVEX-200K** dataset:
-- **200K images**: 100K real, 100K AI-generated
-- **Sources**: FaceForensics++, DFDC, Celeb-DF, Stable Diffusion, etc.
+We use the **140k real and fake faces** dataset by xhlulu:
+- **140K images**: Real faces from FFHQ and AI-generated faces from StyleGAN
 - **Resolution**: 256x256 (preprocessed)
+- **Splits**: 100K train, 10K validation, 20K test
+- **Sources**: FFHQ (real) and StyleGAN (AI-generated)
 - **License**: CC0 Public Domain
+- **Kaggle**: https://www.kaggle.com/datasets/xhlulu/140k-real-and-fake-faces
 
 ### Training Pipeline
 
@@ -272,7 +284,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-- **GRAVEX-200K Dataset**: [Muhammad Bilal](https://kaggle.com/muhammadbilal6305)
+- **140k Real vs Fake Faces Dataset**: [xhlulu](https://kaggle.com/xhlulu)
 - **PyTorch Team**: For the amazing deep learning framework
 - **FastAPI**: For the modern, fast web framework
 - **Tailwind CSS**: For the utility-first CSS framework
@@ -281,7 +293,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - [Training Guide](docs/TRAINING.md) - How to train the model
 - [API Documentation](docs/API.md) - API reference and examples
-- [GRAVEX-200K Dataset](https://kaggle.com/datasets/muhammadbilal6305/200k-real-vs-ai-visuals-by-mbilal)
+- [140k Real vs Fake Faces Dataset](https://www.kaggle.com/datasets/xhlulu/140k-real-and-fake-faces)
 - [MobileNetV2 Paper](https://arxiv.org/abs/1801.04381)
 
 ## 📧 Contact
