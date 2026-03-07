@@ -298,35 +298,53 @@ def load_data_splits(dataset_path: Path) -> tuple:
 def create_data_loaders(
     train_dataset: Dataset, val_dataset: Dataset, test_dataset: Dataset
 ) -> tuple:
-    """Create data loaders for train, val, and test sets."""
-    print("\n✅ Creating data loaders...")
+    """Create optimized data loaders for GPU training."""
+    print("\n✅ Creating optimized data loaders...")
 
-    # IMPORTANT: num_workers=0 for Kaggle compatibility
+    # Kaggle T4 x2 setup - use multiprocessing for faster data loading
+    # num_workers: 2-4 works well on Kaggle (too many causes slowdown)
+    # prefetch_factor: 2 prefetches 2 batches per worker
+    # persistent_workers: keeps workers alive between epochs
+
+    num_workers = 2 if Config.DEVICE.type == "cuda" else 0
+    prefetch_factor = 2 if num_workers > 0 else None
+    persistent_workers = True if num_workers > 0 else False
+
     train_loader = DataLoader(
         train_dataset,
         batch_size=Config.BATCH_SIZE,
         shuffle=True,
-        num_workers=0,  # Kaggle doesn't support multiprocessing
+        num_workers=num_workers,
         pin_memory=True if Config.DEVICE.type == "cuda" else False,
+        prefetch_factor=prefetch_factor,
+        persistent_workers=persistent_workers,
     )
 
     val_loader = DataLoader(
         val_dataset,
         batch_size=Config.BATCH_SIZE,
         shuffle=False,
-        num_workers=0,
+        num_workers=num_workers,
         pin_memory=True if Config.DEVICE.type == "cuda" else False,
+        prefetch_factor=prefetch_factor,
+        persistent_workers=persistent_workers,
     )
 
     test_loader = DataLoader(
         test_dataset,
         batch_size=Config.BATCH_SIZE,
         shuffle=False,
-        num_workers=0,
+        num_workers=num_workers,
         pin_memory=True if Config.DEVICE.type == "cuda" else False,
+        prefetch_factor=prefetch_factor,
+        persistent_workers=persistent_workers,
     )
 
-    print(f"✅ Data loaders created (batch_size={Config.BATCH_SIZE})")
+    print("✅ Data loaders created:")
+    print(f"   - batch_size: {Config.BATCH_SIZE}")
+    print(f"   - num_workers: {num_workers}")
+    print(f"   - prefetch_factor: {prefetch_factor if prefetch_factor else 'N/A'}")
+    print(f"   - pin_memory: {Config.DEVICE.type == 'cuda'}")
 
     return train_loader, val_loader, test_loader
 
@@ -388,9 +406,9 @@ def train_epoch(model, loader, criterion, optimizer, device) -> Tuple[float, flo
     correct = 0
     total = 0
 
-    # Enable mixed precision if configured
+    # Enable mixed precision if configured (using new PyTorch API)
     scaler = (
-        torch.cuda.amp.GradScaler()
+        torch.amp.GradScaler("cuda")
         if Config.USE_MIXED_PRECISION and device.type == "cuda"
         else None
     )
@@ -403,7 +421,7 @@ def train_epoch(model, loader, criterion, optimizer, device) -> Tuple[float, flo
 
         # Forward with mixed precision
         if scaler:
-            with torch.cuda.amp.autocast():
+            with torch.amp.autocast("cuda"):
                 outputs = model(images)
                 loss = criterion(outputs, labels)
 
@@ -451,9 +469,9 @@ def validate(model, loader, criterion, device) -> Tuple[float, float]:
             images = images.to(device, non_blocking=True)
             labels = labels.float().unsqueeze(1).to(device, non_blocking=True)
 
-            # Mixed precision inference
+            # Mixed precision inference (using new PyTorch API)
             if Config.USE_MIXED_PRECISION and device.type == "cuda":
-                with torch.cuda.amp.autocast():
+                with torch.amp.autocast("cuda"):
                     outputs = model(images)
                     loss = criterion(outputs, labels)
             else:
@@ -599,9 +617,9 @@ def evaluate_model(model, test_loader, device) -> Dict:
             images = images.to(device, non_blocking=True)
             labels = labels.to(device, non_blocking=True)
 
-            # Mixed precision inference
+            # Mixed precision inference (using new PyTorch API)
             if Config.USE_MIXED_PRECISION and device.type == "cuda":
-                with torch.cuda.amp.autocast():
+                with torch.amp.autocast("cuda"):
                     outputs = model(images)
                     probs = torch.sigmoid(outputs)
                     preds = (probs > 0.5).float()
