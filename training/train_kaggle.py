@@ -48,16 +48,18 @@ class Config:
     DROPOUT_RATE = 0.3
 
     # Training hyperparameters
-    BATCH_SIZE = 32
+    BATCH_SIZE = 64  # Increased for dual GPU setup
     LEARNING_RATE = 0.001
     WEIGHT_DECAY = 1e-4
     NUM_EPOCHS = 15
     EARLY_STOPPING_PATIENCE = 5
+    USE_MIXED_PRECISION = True  # AMP for 2-3x speedup
+    USE_MULTIPLE_GPUS = True  # Use all available GPUs
 
     # Data augmentation
     IMAGE_SIZE = 224  # MobileNetV2 input size
 
-    # Device
+    # Device setup with multi-GPU support
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Output files
@@ -335,7 +337,7 @@ def create_data_loaders(
 
 
 def create_model() -> nn.Module:
-    """Create MobileNetV2 model for binary classification."""
+    """Create MobileNetV2 model for binary classification with multi-GPU support."""
     print("\n" + "=" * 70)
     print("🧠 CREATING MODEL")
     print("=" * 70)
@@ -355,6 +357,14 @@ def create_model() -> nn.Module:
         nn.Dropout(p=Config.DROPOUT_RATE), nn.Linear(num_features, Config.NUM_CLASSES)
     )
 
+    # Multi-GPU support
+    if Config.USE_MULTIPLE_GPUS and torch.cuda.device_count() > 1:
+        print(f"\n🚀 Using {torch.cuda.device_count()} GPUs with DataParallel")
+        model = nn.DataParallel(model)
+        model = model.to(Config.DEVICE)
+    else:
+        model = model.to(Config.DEVICE)
+
     # Count parameters
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -372,26 +382,44 @@ def create_model() -> nn.Module:
 
 
 def train_epoch(model, loader, criterion, optimizer, device) -> Tuple[float, float]:
-    """Train for one epoch."""
+    """Train for one epoch with mixed precision support."""
     model.train()
     running_loss = 0.0
     correct = 0
     total = 0
 
+    # Enable mixed precision if configured
+    scaler = (
+        torch.cuda.amp.GradScaler()
+        if Config.USE_MIXED_PRECISION and device.type == "cuda"
+        else None
+    )
+
     pbar = tqdm(loader, desc="Training", leave=False)
 
     for images, labels in pbar:
-        images = images.to(device)
-        labels = labels.float().unsqueeze(1).to(device)
+        images = images.to(device, non_blocking=True)
+        labels = labels.float().unsqueeze(1).to(device, non_blocking=True)
 
-        # Forward
-        outputs = model(images)
-        loss = criterion(outputs, labels)
+        # Forward with mixed precision
+        if scaler:
+            with torch.cuda.amp.autocast():
+                outputs = model(images)
+                loss = criterion(outputs, labels)
 
-        # Backward
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+            # Backward with mixed precision
+            optimizer.zero_grad()
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            # Standard forward/backward
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
         # Statistics
         running_loss += loss.item() * images.size(0)
@@ -410,7 +438,7 @@ def train_epoch(model, loader, criterion, optimizer, device) -> Tuple[float, flo
 
 
 def validate(model, loader, criterion, device) -> Tuple[float, float]:
-    """Validate the model."""
+    """Validate the model with mixed precision support."""
     model.eval()
     running_loss = 0.0
     correct = 0
@@ -420,11 +448,17 @@ def validate(model, loader, criterion, device) -> Tuple[float, float]:
         pbar = tqdm(loader, desc="Validating", leave=False)
 
         for images, labels in pbar:
-            images = images.to(device)
-            labels = labels.float().unsqueeze(1).to(device)
+            images = images.to(device, non_blocking=True)
+            labels = labels.float().unsqueeze(1).to(device, non_blocking=True)
 
-            outputs = model(images)
-            loss = criterion(outputs, labels)
+            # Mixed precision inference
+            if Config.USE_MIXED_PRECISION and device.type == "cuda":
+                with torch.cuda.amp.autocast():
+                    outputs = model(images)
+                    loss = criterion(outputs, labels)
+            else:
+                outputs = model(images)
+                loss = criterion(outputs, labels)
 
             running_loss += loss.item() * images.size(0)
             predicted = (torch.sigmoid(outputs) > 0.5).float()
@@ -442,22 +476,30 @@ def validate(model, loader, criterion, device) -> Tuple[float, float]:
 
 
 def train_model(model, train_loader, val_loader, device) -> Dict:
-    """Train the model with early stopping."""
+    """Train the model with early stopping and mixed precision."""
     print("\n" + "=" * 70)
     print("🚀 STARTING TRAINING")
     print("=" * 70)
     print(f"\n✅ Device: {device}")
+    if device.type == "cuda":
+        print(f"✅ GPUs Available: {torch.cuda.device_count()}")
+        for i in range(torch.cuda.device_count()):
+            print(f"   GPU {i}: {torch.cuda.get_device_name(i)}")
+    print(f"✅ Mixed Precision: {Config.USE_MIXED_PRECISION}")
+    print(f"✅ Multi-GPU: {Config.USE_MULTIPLE_GPUS}")
     print(f"✅ Epochs: {Config.NUM_EPOCHS}")
     print(f"✅ Batch size: {Config.BATCH_SIZE}")
     print(f"✅ Learning rate: {Config.LEARNING_RATE}")
 
-    # Move model to device
-    model = model.to(device)
-
     # Loss and optimizer
     criterion = nn.BCEWithLogitsLoss()
+
+    # Handle DataParallel model for optimizer
+    model_params = (
+        model.module.parameters() if hasattr(model, "module") else model.parameters()
+    )
     optimizer = optim.Adam(
-        model.parameters(), lr=Config.LEARNING_RATE, weight_decay=Config.WEIGHT_DECAY
+        model_params, lr=Config.LEARNING_RATE, weight_decay=Config.WEIGHT_DECAY
     )
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, mode="min", factor=0.1, patience=3
@@ -542,7 +584,7 @@ def train_model(model, train_loader, val_loader, device) -> Dict:
 
 
 def evaluate_model(model, test_loader, device) -> Dict:
-    """Evaluate model on test set."""
+    """Evaluate model on test set with mixed precision support."""
     print("\n" + "=" * 70)
     print("📊 EVALUATING ON TEST SET")
     print("=" * 70)
@@ -554,12 +596,19 @@ def evaluate_model(model, test_loader, device) -> Dict:
 
     with torch.no_grad():
         for images, labels in tqdm(test_loader, desc="Testing"):
-            images = images.to(device)
-            labels = labels.to(device)
+            images = images.to(device, non_blocking=True)
+            labels = labels.to(device, non_blocking=True)
 
-            outputs = model(images)
-            probs = torch.sigmoid(outputs)
-            preds = (probs > 0.5).float()
+            # Mixed precision inference
+            if Config.USE_MIXED_PRECISION and device.type == "cuda":
+                with torch.cuda.amp.autocast():
+                    outputs = model(images)
+                    probs = torch.sigmoid(outputs)
+                    preds = (probs > 0.5).float()
+            else:
+                outputs = model(images)
+                probs = torch.sigmoid(outputs)
+                preds = (probs > 0.5).float()
 
             all_preds.extend(preds.cpu().numpy().flatten())
             all_labels.extend(labels.cpu().numpy())
@@ -657,19 +706,30 @@ def plot_history(history: Dict):
 
 
 def main():
-    """Main training function."""
+    """Main training function with optimized GPU usage."""
     print("\n" + "=" * 70)
-    print("🤖 AI FACE DETECTOR - KAGGLE TRAINING")
+    print("🤖 AI FACE DETECTOR - KAGGLE TRAINING (GPU OPTIMIZED)")
     print("=" * 70)
 
-    # Check device
+    # Check device and display GPU info
     print(f"\n🔧 Device: {Config.DEVICE}")
     if Config.DEVICE.type == "cuda":
-        print(f"✅ GPU: {torch.cuda.get_device_name(0)}")
-        mem = torch.cuda.get_device_properties(0).total_memory / 1e9
-        print(f"✅ Memory: {mem:.2f} GB")
+        print(f"✅ CUDA Available: {torch.cuda.is_available()}")
+        print(f"✅ GPU Count: {torch.cuda.device_count()}")
+        for i in range(torch.cuda.device_count()):
+            props = torch.cuda.get_device_properties(i)
+            mem_gb = props.total_memory / 1e9
+            print(f"   GPU {i}: {torch.cuda.get_device_name(i)}")
+            print(f"          Memory: {mem_gb:.2f} GB")
+            print(f"          Compute Capability: {props.major}.{props.minor}")
+        print(f"✅ Mixed Precision: {Config.USE_MIXED_PRECISION} (2-3x faster)")
+        print(f"✅ Multi-GPU: {Config.USE_MULTIPLE_GPUS}")
+        print(
+            f"✅ Batch Size: {Config.BATCH_SIZE} (optimized for {torch.cuda.device_count()} GPU(s))"
+        )
     else:
         print("⚠️  No GPU - using CPU (will be slow)")
+        print("💡 Enable GPU in Kaggle: Settings > Accelerator > GPU T4")
 
     # Find dataset
     dataset_path = find_dataset_path()
