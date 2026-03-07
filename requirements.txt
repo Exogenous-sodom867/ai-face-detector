@@ -1,0 +1,22 @@
+# Core Dependencies
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
+
+# PyTorch
+torch==2.1.2
+torchvision==0.16.2
+
+# Image Processing
+pillow==10.2.0
+
+# Training (for cloud training)
+matplotlib==3.8.2
+tqdm==4.66.1
+scikit-learn==1.4.0
+
+# Optional: Development dependencies
+# pytest==7.4.4
+# black==24.1.1
+# ruff==0.1.15
+# mypy==1.8.0
