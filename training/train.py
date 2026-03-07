@@ -123,8 +123,18 @@ def find_dataset_path() -> Path:
             return current_path, "140k"
 
         # Check for GRAVEX-200K dataset structure
-        gravex_ai = current_path / "my_real_vs_ai_dataset" / "my_real_vs_ai_dataset" / "ai_images"
-        gravex_real = current_path / "my_real_vs_ai_dataset" / "my_real_vs_ai_dataset" / "real_images"
+        gravex_ai = (
+            current_path
+            / "my_real_vs_ai_dataset"
+            / "my_real_vs_ai_dataset"
+            / "ai_images"
+        )
+        gravex_real = (
+            current_path
+            / "my_real_vs_ai_dataset"
+            / "my_real_vs_ai_dataset"
+            / "real_images"
+        )
 
         if gravex_ai.exists() and gravex_real.exists():
             return current_path, "GRAVEX-200K"
@@ -154,8 +164,18 @@ def find_dataset_path() -> Path:
             real_count = len(list(train_real.glob("*.jpg")))
             fake_count = len(list(train_fake.glob("*.jpg")))
         elif dataset_type == "GRAVEX-200K":
-            train_real = dataset_path / "my_real_vs_ai_dataset" / "my_real_vs_ai_dataset" / "real_images"
-            train_fake = dataset_path / "my_real_vs_ai_dataset" / "my_real_vs_ai_dataset" / "ai_images"
+            train_real = (
+                dataset_path
+                / "my_real_vs_ai_dataset"
+                / "my_real_vs_ai_dataset"
+                / "real_images"
+            )
+            train_fake = (
+                dataset_path
+                / "my_real_vs_ai_dataset"
+                / "my_real_vs_ai_dataset"
+                / "ai_images"
+            )
             real_count = len(list(train_real.glob("*.jpg")))
             fake_count = len(list(train_fake.glob("*.jpg")))
 
@@ -178,10 +198,6 @@ def find_dataset_path() -> Path:
         "Beklenen yapılar:\n"
         "- 140k: real_vs_fake/train/real/ ve real_vs_fake/train/fake/\n"
         "- GRAVEX-200K: my_real_vs_ai_dataset/my_real_vs_ai_dataset/real_images/ ve ai_images/"
-    )
-        "1. Dataset eklenmiş mi?: https://www.kaggle.com/datasets/xhlulu/140k-real-and-fake-faces\n"
-        "2. Notebook'un sağında 'Input' bölümünde dataset görünüyor mu?\n\n"
-        "Beklenen yapı: real_vs_fake/train/real/ ve real_vs_fake/train/fake/"
     )
 
 
