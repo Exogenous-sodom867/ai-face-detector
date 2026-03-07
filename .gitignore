@@ -54,7 +54,7 @@ data/processed/
 
 # Jupyter Notebook
 .ipynb_checkpoints/
-*.ipynb
+# *.ipynb  # Commented out - we want to version control notebooks
 
 # Training outputs
 training_history.json
