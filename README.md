@@ -14,6 +14,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109%2B-green)](https://fastapi.tiangolo.com)
 
 [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/furkankoykiran/ai-face-detector/blob/main/training/train_colab.ipynb)
+[![Kaggle Model](https://kaggle.com/static/images/open-in-kaggle.svg)](https://www.kaggle.com/models/furkankoykiran/ai-face-detector-mobilenetv2)
 
 **Detect AI-generated faces with ~95% accuracy using Transfer Learning and MobileNetV2**
 
