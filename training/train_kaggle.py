@@ -48,13 +48,14 @@ class Config:
     DROPOUT_RATE = 0.3
 
     # Training hyperparameters
-    BATCH_SIZE = 64  # Increased for dual GPU setup
+    BATCH_SIZE = 128  # Increased for cached dataset (all data in RAM)
     LEARNING_RATE = 0.001
     WEIGHT_DECAY = 1e-4
     NUM_EPOCHS = 15
     EARLY_STOPPING_PATIENCE = 5
     USE_MIXED_PRECISION = True  # AMP for 2-3x speedup
     USE_MULTIPLE_GPUS = True  # Use all available GPUs
+    CACHE_DATASET = True  # Cache all images in RAM (5GB, 30GB available)
 
     # Data augmentation
     IMAGE_SIZE = 224  # MobileNetV2 input size
@@ -154,48 +155,73 @@ def find_dataset_path() -> Path:
 # ================================
 
 
-class FaceDataset(Dataset):
-    """Custom dataset for face images."""
+class CachedFaceDataset(Dataset):
+    """Cached dataset that loads all images into RAM for maximum GPU utilization."""
 
     def __init__(
         self,
         image_paths: list,
         labels: list,
         transform: transforms.Compose = None,
+        cache: bool = True,
     ):
         """
         Args:
             image_paths: List of image file paths
             labels: List of labels (0=AI/Fake, 1=Real)
             transform: Optional transform to apply to images
+            cache: If True, load all images into RAM (recommended for Kaggle)
         """
         self.image_paths = image_paths
         self.labels = labels
         self.transform = transform
+        self.cache = cache
+
+        if self.cache:
+            print(f"📦 Loading {len(image_paths):,} images into RAM...")
+            self.cached_images = []
+            for path in tqdm(image_paths, desc="Caching"):
+                try:
+                    img = Image.open(path).convert("RGB")
+                    if self.transform:
+                        img = self.transform(img)
+                    self.cached_images.append(img)
+                except Exception as e:
+                    print(f"⚠️  Error loading {path}: {e}")
+                    # Create blank image
+                    img = Image.new(
+                        "RGB", (Config.IMAGE_SIZE, Config.IMAGE_SIZE), color="white"
+                    )
+                    if self.transform:
+                        img = self.transform(img)
+                    self.cached_images.append(img)
+
+            print(f"✅ Cached {len(self.cached_images):,} images in RAM")
 
     def __len__(self) -> int:
         return len(self.image_paths)
 
     def __getitem__(self, idx: int) -> tuple:
-        """Load and transform an image."""
-        image_path = self.image_paths[idx]
-        label = self.labels[idx]
+        """Get cached image or load on-the-fly."""
+        if self.cache:
+            return self.cached_images[idx], self.labels[idx]
+        else:
+            # Load on-the-fly (fallback)
+            image_path = self.image_paths[idx]
+            label = self.labels[idx]
 
-        # Load image
-        try:
-            image = Image.open(image_path).convert("RGB")
-        except Exception as e:
-            print(f"⚠️  Error loading {image_path}: {e}")
-            # Return a blank image
-            image = Image.new(
-                "RGB", (Config.IMAGE_SIZE, Config.IMAGE_SIZE), color="white"
-            )
+            try:
+                image = Image.open(image_path).convert("RGB")
+            except Exception as e:
+                print(f"⚠️  Error loading {image_path}: {e}")
+                image = Image.new(
+                    "RGB", (Config.IMAGE_SIZE, Config.IMAGE_SIZE), color="white"
+                )
 
-        # Apply transforms
-        if self.transform:
-            image = self.transform(image)
+            if self.transform:
+                image = self.transform(image)
 
-        return image, label
+            return image, label
 
 
 # ================================
@@ -266,14 +292,12 @@ def load_data_splits(dataset_path: Path) -> tuple:
     test_images = test_real + test_fake
     test_labels = [1] * len(test_real) + [0] * len(test_fake)
 
-    # Create transforms
+    # Create transforms (simplified for faster data loading)
+    # Minimal augmentation: only horizontal flip (fast on CPU)
     train_transform = transforms.Compose(
         [
             transforms.Resize((Config.IMAGE_SIZE, Config.IMAGE_SIZE)),
-            transforms.RandomHorizontalFlip(p=0.5),
-            transforms.RandomRotation(degrees=15),
-            transforms.ColorJitter(brightness=0.2, contrast=0.2),
-            transforms.RandomAffine(degrees=0, translate=(0.1, 0.1)),
+            transforms.RandomHorizontalFlip(p=0.5),  # Only fast augmentations
             transforms.ToTensor(),
             transforms.Normalize(mean=Config.IMAGENET_MEAN, std=Config.IMAGENET_STD),
         ]
@@ -287,10 +311,17 @@ def load_data_splits(dataset_path: Path) -> tuple:
         ]
     )
 
-    # Create datasets
-    train_dataset = FaceDataset(train_images, train_labels, train_transform)
-    val_dataset = FaceDataset(val_images, val_labels, val_transform)
-    test_dataset = FaceDataset(test_images, test_labels, val_transform)
+    # Create cached datasets (loads all images into RAM for maximum GPU utilization)
+    print(f"\n📦 Creating cached datasets (cache={Config.CACHE_DATASET})...")
+    train_dataset = CachedFaceDataset(
+        train_images, train_labels, train_transform, cache=Config.CACHE_DATASET
+    )
+    val_dataset = CachedFaceDataset(
+        val_images, val_labels, val_transform, cache=Config.CACHE_DATASET
+    )
+    test_dataset = CachedFaceDataset(
+        test_images, test_labels, val_transform, cache=Config.CACHE_DATASET
+    )
 
     return train_dataset, val_dataset, test_dataset
 
@@ -298,52 +329,40 @@ def load_data_splits(dataset_path: Path) -> tuple:
 def create_data_loaders(
     train_dataset: Dataset, val_dataset: Dataset, test_dataset: Dataset
 ) -> tuple:
-    """Create optimized data loaders for GPU training."""
+    """Create optimized data loaders for cached datasets."""
     print("\n✅ Creating optimized data loaders...")
 
-    # Kaggle T4 x2 setup - use multiprocessing for faster data loading
-    # num_workers: 2-4 works well on Kaggle (too many causes slowdown)
-    # prefetch_factor: 2 prefetches 2 batches per worker
-    # persistent_workers: keeps workers alive between epochs
-
-    num_workers = 2 if Config.DEVICE.type == "cuda" else 0
-    prefetch_factor = 2 if num_workers > 0 else None
-    persistent_workers = True if num_workers > 0 else False
+    # With cached datasets, use num_workers=0 (data already in RAM)
+    # DataLoader just batches the preloaded images - very fast!
+    # pin_memory=True for faster CPU->GPU transfer
 
     train_loader = DataLoader(
         train_dataset,
         batch_size=Config.BATCH_SIZE,
-        shuffle=True,
-        num_workers=num_workers,
+        shuffle=True,  # Shuffle is fast with cached data
+        num_workers=0,  # No need for workers with cached data
         pin_memory=True if Config.DEVICE.type == "cuda" else False,
-        prefetch_factor=prefetch_factor,
-        persistent_workers=persistent_workers,
     )
 
     val_loader = DataLoader(
         val_dataset,
         batch_size=Config.BATCH_SIZE,
         shuffle=False,
-        num_workers=num_workers,
+        num_workers=0,
         pin_memory=True if Config.DEVICE.type == "cuda" else False,
-        prefetch_factor=prefetch_factor,
-        persistent_workers=persistent_workers,
     )
 
     test_loader = DataLoader(
         test_dataset,
         batch_size=Config.BATCH_SIZE,
         shuffle=False,
-        num_workers=num_workers,
+        num_workers=0,
         pin_memory=True if Config.DEVICE.type == "cuda" else False,
-        prefetch_factor=prefetch_factor,
-        persistent_workers=persistent_workers,
     )
 
-    print("✅ Data loaders created:")
+    print("✅ Data loaders created (cached mode - lightning fast!)")
     print(f"   - batch_size: {Config.BATCH_SIZE}")
-    print(f"   - num_workers: {num_workers}")
-    print(f"   - prefetch_factor: {prefetch_factor if prefetch_factor else 'N/A'}")
+    print("   - num_workers: 0 (data cached in RAM)")
     print(f"   - pin_memory: {Config.DEVICE.type == 'cuda'}")
 
     return train_loader, val_loader, test_loader
