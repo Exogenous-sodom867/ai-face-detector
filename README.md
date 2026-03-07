@@ -112,12 +112,13 @@ poetry install
 1. Go to [kaggle.com/code](https://kaggle.com/code) and create a new notebook
 2. Enable **GPU T4 x2** (Settings > Accelerator > GPU T4)
 3. Add dataset: "140k real and fake faces" by xhlulu
-4. Copy `training/train_kaggle.py` content and run it
+4. Copy `training/train.py` content and run it
 5. Download `model.pth` from `/kaggle/working/` (after ~43 minutes)
 6. Place `model.pth` in your project root
 
 **GPU Optimizations:**
-- ✅ Cached dataset (100K images in RAM)
+- ✅ Auto-detects dataset type (140k or GRAVEX-200K)
+- ✅ Cached dataset (100K+ images in RAM)
 - ✅ Multi-GPU training (DataParallel)
 - ✅ Mixed precision (AMP) - 2-3x faster
 - ✅ Large batch size (256) - better GPU utilization
@@ -125,7 +126,14 @@ poetry install
 
 **Option B: Google Colab Training**
 
-[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/furkankoykiran/ai-face-detector/blob/main/training/train_colab.ipynb)
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/furkankoykiran/ai-face-detector)
+
+```python
+# In Colab:
+!git clone https://github.com/furkankoykiran/ai-face-detector.git
+%cd ai-face-detector
+!python training/train.py --data_path /content/data
+```
 
 See [Training Guide](docs/TRAINING.md) for detailed instructions.
 
@@ -184,22 +192,23 @@ AI-Face-Detector/
 │   ├── model_loader.py      # Model loading utilities
 │   ├── config.py            # Configuration settings
 │   └── utils.py             # Image preprocessing & inference
-├── data/
-│   └── setup_dataset.py     # Kaggle dataset download script
 ├── training/
-│   ├── train_model.py       # Generic training script
-│   ├── train_kaggle.py      # Kaggle-specific training script (recommended)
-│   └── train_colab.ipynb    # Jupyter notebook (optional)
+│   └── train.py             # Universal training script (Kaggle/Colab/Local)
 ├── static/
 │   └── index.html           # Frontend UI with Tailwind CSS
 ├── docs/
 │   ├── TRAINING.md          # Detailed training guide
 │   └── API.md               # API reference documentation
+├── .github/
+│   ├── workflows/           # CI/CD workflows
+│   └── ISSUE_TEMPLATE/      # Issue and PR templates
 ├── model.pth                # Trained weights (download after training)
 ├── requirements.txt         # Python dependencies
-├── pyproject.toml           # Poetry configuration
 ├── .gitignore              # Git exclusions
 ├── README.md               # This file
+├── CONTRIBUTING.md         # Contribution guidelines
+├── CODE_OF_CONDUCT.md      # Community guidelines
+├── SECURITY.md             # Security policy
 └── LICENSE                 # MIT License
 ```
 
