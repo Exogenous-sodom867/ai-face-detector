@@ -60,7 +60,7 @@ class Config:
     DROPOUT_RATE = 0.3
 
     # Training hyperparameters
-    BATCH_SIZE = 256  # Large batch for dual GPU T4 (2x15GB)
+    BATCH_SIZE = 320  # Optimized for single T4 (15GB) - increased from 256
     LEARNING_RATE = 0.001
     WEIGHT_DECAY = 1e-4
     NUM_EPOCHS = 15
@@ -68,6 +68,10 @@ class Config:
     USE_MIXED_PRECISION = True  # AMP for 2-3x speedup
     USE_MULTIPLE_GPUS = True  # Use all available GPUs
     CACHE_DATASET = False  # Don't cache (use streaming to avoid RAM issues)
+
+    # DataLoader optimization
+    NUM_WORKERS = 4  # Increased from 2 for better CPU utilization
+    PREFETCH_FACTOR = 4  # Increased from 2 for faster data loading
 
     # Data augmentation
     IMAGE_SIZE = 224  # MobileNetV2 input size
@@ -393,10 +397,9 @@ def create_data_loaders(
         mode = "cached"
     else:
         # Streaming mode: Parallel data loading to keep GPU fed
-        # num_workers: 2-4 works well on Kaggle
-        # prefetch_factor: 2 prefetches 2 batches per worker
-        num_workers = 2 if Config.DEVICE.type == "cuda" else 0
-        prefetch_factor = 2 if num_workers > 0 else None
+        # Use Config values for optimal performance
+        num_workers = Config.NUM_WORKERS if Config.DEVICE.type == "cuda" else 0
+        prefetch_factor = Config.PREFETCH_FACTOR if num_workers > 0 else None
         persistent_workers = True if num_workers > 0 else False
         mode = "streaming"
 
@@ -451,8 +454,10 @@ def create_model() -> nn.Module:
     print("🧠 CREATING MODEL")
     print("=" * 70)
 
-    # Load pre-trained MobileNetV2
-    model = models.mobilenet_v2(pretrained=True)
+    # Load pre-trained MobileNetV2 with updated weights API (PyTorch 0.13+)
+    from torchvision.models import MobileNet_V2_Weights
+
+    model = models.mobilenet_v2(weights=MobileNet_V2_Weights.IMAGENET1K_V1)
 
     # Freeze feature extractor
     for param in model.features.parameters():
@@ -814,7 +819,6 @@ def plot_history(history: Dict):
 # ================================
 
 
-
 # ================================
 # Environment Detection
 # ================================
@@ -823,25 +827,25 @@ def plot_history(history: Dict):
 def detect_environment() -> Tuple[str, Path]:
     """
     Auto-detect the environment (Kaggle, Colab, or Local).
-    
+
     Returns:
         Tuple of (environment_name, default_data_path)
     """
     # Check for Colab
     if os.path.exists("/content"):
         return "colab", Path("/content/data")
-    
+
     # Check for Kaggle
     if os.path.exists("/kaggle/input"):
         return "kaggle", Path("/kaggle/input")
-    
+
     # Default to local
     return "local", Path("./data")
 
 
 def main():
     """Main training function with environment detection and argparse."""
-    
+
     # Parse command-line arguments
     parser = argparse.ArgumentParser(
         description="Train AI Face Detector model",
@@ -851,25 +855,25 @@ Examples:
     Kaggle (auto-detect):    python train.py
     Colab:                  python train.py --data_path /content/data
     Local:                  python train.py --data_path ./data
-        """
+        """,
     )
     parser.add_argument(
         "--data_path",
         type=str,
         default=None,
-        help="Path to dataset directory (auto-detected if not specified)"
+        help="Path to dataset directory (auto-detected if not specified)",
     )
     args = parser.parse_args()
-    
+
     # Detect environment and set data path
     env, default_path = detect_environment()
-    
+
     # Use command-line argument if provided, otherwise use auto-detected path
     data_path = Path(args.data_path) if args.data_path else default_path
-    
+
     # Update Config with detected data path and output paths
     Config.DATA_PATH = data_path
-    
+
     # Set output paths based on environment
     if env == "colab":
         Config.MODEL_SAVE_PATH = "/content/model.pth"
@@ -882,7 +886,7 @@ Examples:
         Config.REPORT_SAVE_PATH = "/kaggle/working/evaluation_report.json"
         Config.PLOT_SAVE_PATH = "/kaggle/working/training_curves.png"
     # For local, use current directory
-    
+
     # Print header with environment info
     print("\n" + "=" * 70)
     print(f"🤖 AI FACE DETECTOR - TRAINING ({env.upper()})")
@@ -954,14 +958,14 @@ Examples:
     print("\n" + "=" * 70)
     print("🎉 COMPLETE!")
     print("=" * 70)
-    
+
     if env == "kaggle":
         print("\n📁 Output files (in /kaggle/working/):")
     elif env == "colab":
         print("\n📁 Output files (in /content/):")
     else:
         print("\n📁 Output files (in current directory):")
-    
+
     print("  1. model.pth - Trained model (DOWNLOAD THIS!)")
     print("  2. training_history.json")
     print("  3. evaluation_report.json")
