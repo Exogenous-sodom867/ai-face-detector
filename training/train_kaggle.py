@@ -48,7 +48,7 @@ class Config:
     DROPOUT_RATE = 0.3
 
     # Training hyperparameters
-    BATCH_SIZE = 128  # Increased for cached dataset (all data in RAM)
+    BATCH_SIZE = 256  # Large batch for dual GPU T4 (2x15GB)
     LEARNING_RATE = 0.001
     WEIGHT_DECAY = 1e-4
     NUM_EPOCHS = 15
