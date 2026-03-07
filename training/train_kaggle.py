@@ -460,7 +460,7 @@ def train_model(model, train_loader, val_loader, device) -> Dict:
         model.parameters(), lr=Config.LEARNING_RATE, weight_decay=Config.WEIGHT_DECAY
     )
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode="min", factor=0.1, patience=3, verbose=True
+        optimizer, mode="min", factor=0.1, patience=3
     )
 
     # History
