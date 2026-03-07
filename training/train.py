@@ -26,6 +26,7 @@ Usage:
         2. Run: python train.py --data_path ./data
 """
 
+import argparse
 import json
 import os
 import time
@@ -813,10 +814,78 @@ def plot_history(history: Dict):
 # ================================
 
 
+
+# ================================
+# Environment Detection
+# ================================
+
+
+def detect_environment() -> Tuple[str, Path]:
+    """
+    Auto-detect the environment (Kaggle, Colab, or Local).
+    
+    Returns:
+        Tuple of (environment_name, default_data_path)
+    """
+    # Check for Colab
+    if os.path.exists("/content"):
+        return "colab", Path("/content/data")
+    
+    # Check for Kaggle
+    if os.path.exists("/kaggle/input"):
+        return "kaggle", Path("/kaggle/input")
+    
+    # Default to local
+    return "local", Path("./data")
+
+
 def main():
-    """Main training function with optimized GPU usage."""
+    """Main training function with environment detection and argparse."""
+    
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(
+        description="Train AI Face Detector model",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+    Kaggle (auto-detect):    python train.py
+    Colab:                  python train.py --data_path /content/data
+    Local:                  python train.py --data_path ./data
+        """
+    )
+    parser.add_argument(
+        "--data_path",
+        type=str,
+        default=None,
+        help="Path to dataset directory (auto-detected if not specified)"
+    )
+    args = parser.parse_args()
+    
+    # Detect environment and set data path
+    env, default_path = detect_environment()
+    
+    # Use command-line argument if provided, otherwise use auto-detected path
+    data_path = Path(args.data_path) if args.data_path else default_path
+    
+    # Update Config with detected data path and output paths
+    Config.DATA_PATH = data_path
+    
+    # Set output paths based on environment
+    if env == "colab":
+        Config.MODEL_SAVE_PATH = "/content/model.pth"
+        Config.HISTORY_SAVE_PATH = "/content/training_history.json"
+        Config.REPORT_SAVE_PATH = "/content/evaluation_report.json"
+        Config.PLOT_SAVE_PATH = "/content/training_curves.png"
+    elif env == "kaggle":
+        Config.MODEL_SAVE_PATH = "/kaggle/working/model.pth"
+        Config.HISTORY_SAVE_PATH = "/kaggle/working/training_history.json"
+        Config.REPORT_SAVE_PATH = "/kaggle/working/evaluation_report.json"
+        Config.PLOT_SAVE_PATH = "/kaggle/working/training_curves.png"
+    # For local, use current directory
+    
+    # Print header with environment info
     print("\n" + "=" * 70)
-    print("🤖 AI FACE DETECTOR - KAGGLE TRAINING (GPU OPTIMIZED)")
+    print(f"🤖 AI FACE DETECTOR - TRAINING ({env.upper()})")
     print("=" * 70)
 
     # Check device and display GPU info
@@ -837,7 +906,13 @@ def main():
         )
     else:
         print("⚠️  No GPU - using CPU (will be slow)")
-        print("💡 Enable GPU in Kaggle: Settings > Accelerator > GPU T4")
+        if env == "kaggle":
+            print("💡 Enable GPU in Kaggle: Settings > Accelerator > GPU T4")
+        elif env == "colab":
+            print("💡 Enable GPU in Colab: Runtime > Change runtime type > GPU")
+
+    print(f"\n📁 Data Path: {Config.DATA_PATH}")
+    print(f"💾 Output Path: {Config.MODEL_SAVE_PATH}")
 
     # Find dataset
     dataset_path = find_dataset_path()
@@ -879,7 +954,14 @@ def main():
     print("\n" + "=" * 70)
     print("🎉 COMPLETE!")
     print("=" * 70)
-    print("\n📁 Output files (in /kaggle/working/):")
+    
+    if env == "kaggle":
+        print("\n📁 Output files (in /kaggle/working/):")
+    elif env == "colab":
+        print("\n📁 Output files (in /content/):")
+    else:
+        print("\n📁 Output files (in current directory):")
+    
     print("  1. model.pth - Trained model (DOWNLOAD THIS!)")
     print("  2. training_history.json")
     print("  3. evaluation_report.json")
@@ -893,11 +975,9 @@ def main():
     print("\n" + "=" * 70)
     print("📥 NEXT STEPS:")
     print("=" * 70)
-    print("1. Open the file browser (right side)")
-    print("2. Go to /kaggle/working/")
-    print("3. Download model.pth")
-    print("4. Place model.pth in your project root")
-    print("5. Run: uvicorn app.main:app --reload")
+    print("1. Download model.pth")
+    print("2. Place model.pth in your project root")
+    print("3. Run: uvicorn app.main:app --reload")
     print("=" * 70)
 
 
