@@ -24,19 +24,18 @@ This guide explains how to train the AI Face Detector model using Google Colab o
 
 ### Step 3: Upload Training Script
 
-1. Copy the content from `training/train_kaggle.py` in this repository
+1. Copy the content from `training/train.py` in this repository
 2. Paste into a new code cell in your Kaggle notebook
 3. Run the cell to execute the training script
 
-**OR** run this command in a cell:
-
+**OR** use the Colab notebook:
 ```python
-# Install dependencies (usually pre-installed on Kaggle)
-!pip install torch torchvision pillow matplotlib tqdm scikit-learn
+# Clone the repository
+!git clone https://github.com/furkankoykiran/ai-face-detector.git
+%cd ai-face-detector
 
-# Download and run the Kaggle training script
-!wget https://raw.githubusercontent.com/furkankoykiran/ai-face-detector/main/training/train_kaggle.py
-!python train_kaggle.py
+# Run training (auto-detects Kaggle environment)
+!python training/train.py
 ```
 
 ### Step 4: Monitor Training
@@ -107,73 +106,77 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 from google.colab import files
 files.upload()
 
+# Setup Kaggle API credentials
+!mkdir -p ~/.kaggle
+!cp kaggle.json ~/.kaggle/
+!chmod 600 ~/.kaggle/kaggle.json
+
 # Download dataset
 !kaggle datasets download -d xhlulu/140k-real-and-fake-faces
 
-# Extract dataset
-!unzip 140k-real-and-fake-faces.zip -d /content/data
+# Create data directory and extract dataset
+!mkdir -p /content/data
+!unzip -q 140k-real-and-fake-faces.zip -d /content/data
+!rm 140k-real-and-fake-faces.zip
 ```
 
 **Option B: Manual Upload**
 
 1. Download dataset from Kaggle: [140k Real vs Fake Faces](https://www.kaggle.com/datasets/xhlulu/140k-real-and-fake-faces)
 2. Extract the zip file
-3. Upload the `real_vs_fake` folder to Colab
+3. Upload the extracted folder to Colab
 
-### Step 4: Upload Training Script
-
-1. Copy the content from `training/train_model.py`
-2. Create a new cell in Colab and paste the script
-3. Or upload the file directly to Colab
-
-### Step 5: Configure Data Path
-
-At the top of the script, update the `DATA_PATH`:
+### Step 4: Clone Repository and Run Training
 
 ```python
-DATA_PATH = Path("/content/data/real_vs_fake")  # For Colab
-AI_IMAGES_DIR = "train/fake"
-REAL_IMAGES_DIR = "train/real"
+# Clone repository
+!git clone https://github.com/furkankoykiran/ai-face-detector.git
+%cd ai-face-detector
+
+# Run training with correct data path
+!python training/train.py --data_path /content/data
 ```
 
-### Step 6: Run Training
+### Step 5: Download Trained Model
 
-```python
-!python train_model.py
-```
-
-Or run directly in the notebook:
-
-```python
-from train_model import main
-main()
-```
-
-### Step 7: Download Trained Model
-
-After training completes, download the files:
+After training completes (~60 minutes):
 
 1. Open the file browser (📁 icon on the left)
-2. Right-click on `model.pth` and select "Download"
-3. Save it to your project root directory
+2. Go to `/content/` directory
+3. Download these files:
+   - **`model.pth`** - Trained model weights (MOST IMPORTANT!)
+   - `training_history.json` - Training metrics per epoch
+   - `evaluation_report.json` - Test set performance
+   - `training_curves.png` - Visualization of training
 
-## Training Configuration
+## Training Configuration (2025 Update)
 
-Default hyperparameters (can be modified in `Config` class):
+**Optimized hyperparameters** (configured in `Config` class):
 
 ```python
-BATCH_SIZE = 32
-LEARNING_RATE = 0.001
-NUM_EPOCHS = 15
+BATCH_SIZE = 256        # Optimal for T4 GPU
+LEARNING_RATE = 0.001   # Adam optimizer
+NUM_EPOCHS = 15         # With early stopping
 EARLY_STOPPING_PATIENCE = 5
 DROPOUT_RATE = 0.3
+
+# DataLoader (Colab optimized)
+NUM_WORKERS = 2         # Matches Colab's 2 CPUs
+PREFETCH_FACTOR = 2     # Preloads batches
+PIN_MEMORY = True       # Faster CPU-to-GPU transfer
+
+# Training optimizations
+USE_MIXED_PRECISION = True   # AMP for 2-3x speedup
+USE_MULTIPLE_GPUS = True     # Auto DataParallel
+CACHE_DATASET = False        # Streaming (no RAM overflow)
+USE_TORCH_COMPILE = False    # Disabled for T4 (causes slowdown)
 ```
 
-## Expected Training Time
+## Expected Training Time (2025 Update)
 
-- **With GPU (Kaggle T4)**: ~20-30 minutes for 15 epochs
-- **With GPU (Colab)**: ~30-45 minutes for 15 epochs
-- **With CPU**: ~3-4 hours (not recommended)
+- **Kaggle T4 x2**: ~50 minutes (~1.1-1.3 it/s)
+- **Colab T4**: ~60 minutes (~1.1-1.3 it/s)
+- **CPU**: ~4-6 hours (not recommended)
 
 ## Expected Performance
 

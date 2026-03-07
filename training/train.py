@@ -60,7 +60,7 @@ class Config:
     DROPOUT_RATE = 0.3
 
     # Training hyperparameters
-    BATCH_SIZE = 320  # Optimized for single T4 (15GB) - increased from 256
+    BATCH_SIZE = 256  # Optimal for T4 GPU - stable performance, ~1.1-1.3 it/s
     LEARNING_RATE = 0.001
     WEIGHT_DECAY = 1e-4
     NUM_EPOCHS = 15
@@ -73,6 +73,9 @@ class Config:
     NUM_WORKERS = 2  # Optimal for Colab (2 CPUs) - prevents worker warning
     PREFETCH_FACTOR = 2  # Prefetch batches for faster data loading
     # Note: Colab has 2 CPUs, Kaggle has 4 CPUs. num_workers > CPUs causes slowdown
+
+    # PyTorch 2.0 optimization (T4-compatible settings)
+    USE_TORCH_COMPILE = False  # Disabled: causes slowdown on T4, only use on A100/V100
 
     # Data augmentation
     IMAGE_SIZE = 224  # MobileNetV2 input size
@@ -480,20 +483,23 @@ def create_model() -> nn.Module:
     else:
         model = model.to(Config.DEVICE)
 
-    # PyTorch 2.0+ optimization: torch.compile() for 20-30% speedup
-    # Best practice from PyTorch team - compile model after moving to device
-    try:
-        if hasattr(torch, "compile"):
-            # mode="reduce-overhead" is best for inference, "max-autotune" for training
-            # We use default mode which balances both
+    # PyTorch 2.0+ optimization: torch.compile()
+    # Note: Only beneficial on high-end GPUs (A100, V100, H100)
+    # T4 GPUs experience slowdown due to insufficient SMs for optimization
+    if Config.USE_TORCH_COMPILE and hasattr(torch, "compile"):
+        try:
             print("\n⚡ Compiling model with torch.compile() (PyTorch 2.0+)...")
+            print("⚠️  Note: Only recommended for A100/V100/H100 GPUs")
             model = torch.compile(model)
-            print("✅ Model compiled - expecting 20-30% speedup")
+            print("✅ Model compiled")
+        except Exception as e:
+            print(f"\n⚠️  torch.compile() failed: {e}")
+            print("Continuing without compilation...")
+    else:
+        if not Config.USE_TORCH_COMPILE:
+            print("\n⚡ torch.compile() disabled (optimized for T4/K80 GPUs)")
         else:
-            print("\n⚠️  PyTorch < 2.0, skipping torch.compile()")
-    except Exception as e:
-        print(f"\n⚠️  torch.compile() failed: {e}")
-        print("Continuing without compilation...")
+            print("\n⚠️  PyTorch < 2.0, torch.compile() not available")
 
     # Count parameters
     total_params = sum(p.numel() for p in model.parameters())
