@@ -1,18 +1,29 @@
 #!/usr/bin/env python3
 """
-AI Face Detector - Kaggle Training Script
+AI Face Detector - Universal Training Script
 
-This script is specifically designed for Kaggle Notebooks with the
-"140k real and fake faces" dataset by xhlulu.
+This script works with multiple datasets and environments (Kaggle, Colab, Local).
+Automatically detects the dataset and optimizes training for available hardware.
 
-Dataset: https://www.kaggle.com/datasets/xhlulu/140k-real-and-fake-faces
+Supported Datasets:
+- 140k Real vs Fake Faces (xhlulu) - https://www.kaggle.com/datasets/xhlulu/140k-real-and-fake-faces
+- GRAVEX-200K (muhammadbilal6305) - https://www.kaggle.com/datasets/muhammadbilal6305/200k-real-vs-ai-visuals-by-mbilal
+
 Model: MobileNetV2 (pre-trained on ImageNet)
 Task: Binary classification (Real vs AI-Generated)
 
-Usage in Kaggle:
-    1. Add dataset "140k real and fake faces" to your notebook
-    2. Run this script
-    3. Download model.pth when training completes
+Usage:
+    Kaggle:
+        1. Add dataset to notebook
+        2. Run: python train.py
+
+    Colab:
+        1. Upload dataset to /content/data
+        2. Run: python train.py --data_path /content/data
+
+    Local:
+        1. Download dataset
+        2. Run: python train.py --data_path ./data
 """
 
 import json
@@ -55,7 +66,7 @@ class Config:
     EARLY_STOPPING_PATIENCE = 5
     USE_MIXED_PRECISION = True  # AMP for 2-3x speedup
     USE_MULTIPLE_GPUS = True  # Use all available GPUs
-    CACHE_DATASET = True  # Cache all images in RAM (5GB, 30GB available)
+    CACHE_DATASET = False  # Don't cache (use streaming to avoid RAM issues)
 
     # Data augmentation
     IMAGE_SIZE = 224  # MobileNetV2 input size
@@ -81,7 +92,8 @@ class Config:
 
 def find_dataset_path() -> Path:
     """
-    Automatically find the dataset path in Kaggle.
+    Automatically find the dataset path in Kaggle, Colab, or Local.
+    Supports both 140k and GRAVEX-200K datasets.
 
     Returns:
         Path to the dataset directory
@@ -93,50 +105,64 @@ def find_dataset_path() -> Path:
     base_path = Config.DATA_PATH
 
     # Recursively search for the dataset
-    def find_real_vs_fake_recursive(current_path: Path, depth: int = 0) -> Path:
-        """Recursively search for real_vs_fake directory."""
+    def find_dataset_recursive(current_path: Path, depth: int = 0) -> Tuple[Path, str]:
+        """Recursively search for supported datasets."""
         if depth > 5:  # Limit recursion depth
-            return None
+            return None, None
 
         try:
             contents = os.listdir(current_path)
         except:
-            return None
+            return None, None
 
-        # Check if this directory contains train/real and train/fake
+        # Check for 140k dataset structure: train/real and train/fake
         train_real = current_path / "train" / "real"
         train_fake = current_path / "train" / "fake"
 
         if train_real.exists() and train_fake.exists():
-            return current_path
+            return current_path, "140k"
+
+        # Check for GRAVEX-200K dataset structure
+        gravex_ai = current_path / "my_real_vs_ai_dataset" / "my_real_vs_ai_dataset" / "ai_images"
+        gravex_real = current_path / "my_real_vs_ai_dataset" / "my_real_vs_ai_dataset" / "real_images"
+
+        if gravex_ai.exists() and gravex_real.exists():
+            return current_path, "GRAVEX-200K"
 
         # Recursively search subdirectories
         for item in contents:
             item_path = current_path / item
             if item_path.is_dir() and not item.startswith("."):
-                result = find_real_vs_fake_recursive(item_path, depth + 1)
+                result, dataset_type = find_dataset_recursive(item_path, depth + 1)
                 if result:
-                    return result
+                    return result, dataset_type
 
-        return None
+        return None, None
 
     # Start recursive search
     print(f"\n🔎 Searching for dataset in {base_path}...")
-    dataset_path = find_real_vs_fake_recursive(base_path)
+    dataset_path, dataset_type = find_dataset_recursive(base_path)
 
     if dataset_path:
         print(f"\n✅ Found dataset at: {dataset_path}")
+        print(f"📊 Dataset type: {dataset_type}")
 
-        # Verify structure
-        train_real = dataset_path / "train" / "real"
-        train_fake = dataset_path / "train" / "fake"
-
-        real_count = len(list(train_real.glob("*.jpg")))
-        fake_count = len(list(train_fake.glob("*.jpg")))
+        # Verify structure and count images
+        if dataset_type == "140k":
+            train_real = dataset_path / "train" / "real"
+            train_fake = dataset_path / "train" / "fake"
+            real_count = len(list(train_real.glob("*.jpg")))
+            fake_count = len(list(train_fake.glob("*.jpg")))
+        elif dataset_type == "GRAVEX-200K":
+            train_real = dataset_path / "my_real_vs_ai_dataset" / "my_real_vs_ai_dataset" / "real_images"
+            train_fake = dataset_path / "my_real_vs_ai_dataset" / "my_real_vs_ai_dataset" / "ai_images"
+            real_count = len(list(train_real.glob("*.jpg")))
+            fake_count = len(list(train_fake.glob("*.jpg")))
 
         print("✅ Dataset structure verified!")
-        print(f"   - Train real: {real_count:,} images")
-        print(f"   - Train fake: {fake_count:,} images")
+        print(f"   - Real: {real_count:,} images")
+        print(f"   - Fake/AI: {fake_count:,} images")
+        print(f"   - Total: {real_count + fake_count:,} images")
 
         return dataset_path
 
@@ -144,6 +170,15 @@ def find_dataset_path() -> Path:
     raise ValueError(
         "❌ Dataset bulunamadı!\n\n"
         "Lütfen şunları kontrol et:\n"
+        "1. Dataset eklenmiş mi?\n"
+        "   - 140k: https://www.kaggle.com/datasets/xhlulu/140k-real-and-fake-faces\n"
+        "   - GRAVEX-200K: https://www.kaggle.com/datasets/muhammadbilal6305/200k-real-vs-ai-visuals-by-mbilal\n"
+        "2. DATA_PATH doğru ayarlanmış mı? (varsayılan: /kaggle/input)\n"
+        "3. Notebook'un sağında 'Input' bölümünde dataset görünüyor mu?\n\n"
+        "Beklenen yapılar:\n"
+        "- 140k: real_vs_fake/train/real/ ve real_vs_fake/train/fake/\n"
+        "- GRAVEX-200K: my_real_vs_ai_dataset/my_real_vs_ai_dataset/real_images/ ve ai_images/"
+    )
         "1. Dataset eklenmiş mi?: https://www.kaggle.com/datasets/xhlulu/140k-real-and-fake-faces\n"
         "2. Notebook'un sağında 'Input' bölümünde dataset görünüyor mu?\n\n"
         "Beklenen yapı: real_vs_fake/train/real/ ve real_vs_fake/train/fake/"
@@ -329,40 +364,60 @@ def load_data_splits(dataset_path: Path) -> tuple:
 def create_data_loaders(
     train_dataset: Dataset, val_dataset: Dataset, test_dataset: Dataset
 ) -> tuple:
-    """Create optimized data loaders for cached datasets."""
+    """Create optimized data loaders for streaming or cached mode."""
     print("\n✅ Creating optimized data loaders...")
 
-    # With cached datasets, use num_workers=0 (data already in RAM)
-    # DataLoader just batches the preloaded images - very fast!
-    # pin_memory=True for faster CPU->GPU transfer
+    # Streaming mode (no cache): Use workers for parallel data loading
+    # Cached mode: Use num_workers=0 (data already in RAM)
+    if Config.CACHE_DATASET:
+        num_workers = 0
+        prefetch_factor = None
+        persistent_workers = False
+        mode = "cached"
+    else:
+        # Streaming mode: Parallel data loading to keep GPU fed
+        # num_workers: 2-4 works well on Kaggle
+        # prefetch_factor: 2 prefetches 2 batches per worker
+        num_workers = 2 if Config.DEVICE.type == "cuda" else 0
+        prefetch_factor = 2 if num_workers > 0 else None
+        persistent_workers = True if num_workers > 0 else False
+        mode = "streaming"
 
     train_loader = DataLoader(
         train_dataset,
         batch_size=Config.BATCH_SIZE,
-        shuffle=True,  # Shuffle is fast with cached data
-        num_workers=0,  # No need for workers with cached data
+        shuffle=True,
+        num_workers=num_workers,
         pin_memory=True if Config.DEVICE.type == "cuda" else False,
+        prefetch_factor=prefetch_factor,
+        persistent_workers=persistent_workers,
     )
 
     val_loader = DataLoader(
         val_dataset,
         batch_size=Config.BATCH_SIZE,
         shuffle=False,
-        num_workers=0,
+        num_workers=num_workers,
         pin_memory=True if Config.DEVICE.type == "cuda" else False,
+        prefetch_factor=prefetch_factor,
+        persistent_workers=persistent_workers,
     )
 
     test_loader = DataLoader(
         test_dataset,
         batch_size=Config.BATCH_SIZE,
         shuffle=False,
-        num_workers=0,
+        num_workers=num_workers,
         pin_memory=True if Config.DEVICE.type == "cuda" else False,
+        prefetch_factor=prefetch_factor,
+        persistent_workers=persistent_workers,
     )
 
-    print("✅ Data loaders created (cached mode - lightning fast!)")
+    print(f"✅ Data loaders created ({mode} mode)")
     print(f"   - batch_size: {Config.BATCH_SIZE}")
-    print("   - num_workers: 0 (data cached in RAM)")
+    print(f"   - num_workers: {num_workers}")
+    if prefetch_factor:
+        print(f"   - prefetch_factor: {prefetch_factor}")
     print(f"   - pin_memory: {Config.DEVICE.type == 'cuda'}")
 
     return train_loader, val_loader, test_loader
