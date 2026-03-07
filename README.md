@@ -1,5 +1,9 @@
 # 🤖 AI Face Detector
 
+<p align="center">
+  <img src="banner.png" alt="AI Face Detector Banner" width="1280">
+</p>
+
 [![GitHub stars](https://img.shields.io/github/stars/furkankoykiran/ai-face-detector?style=social)](https://github.com/furkankoykiran/ai-face-detector/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/furkankoykiran/ai-face-detector?style=social)](https://github.com/furkankoykiran/ai-face-detector/network/members)
 [![GitHub issues](https://img.shields.io/github/issues/furkankoykiran/ai-face-detector)](https://github.com/furkankoykiran/ai-face-detector/issues)
