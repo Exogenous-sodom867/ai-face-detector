@@ -66,7 +66,7 @@ class Config:
     EARLY_STOPPING_PATIENCE = 5
     USE_MIXED_PRECISION = True  # AMP for 2-3x speedup
     USE_MULTIPLE_GPUS = True  # Use all available GPUs
-    CACHE_DATASET = True  # Cache all images in RAM (5GB, 30GB available)
+    CACHE_DATASET = False  # Don't cache (use streaming to avoid RAM issues)
 
     # Data augmentation
     IMAGE_SIZE = 224  # MobileNetV2 input size
@@ -364,40 +364,60 @@ def load_data_splits(dataset_path: Path) -> tuple:
 def create_data_loaders(
     train_dataset: Dataset, val_dataset: Dataset, test_dataset: Dataset
 ) -> tuple:
-    """Create optimized data loaders for cached datasets."""
+    """Create optimized data loaders for streaming or cached mode."""
     print("\n✅ Creating optimized data loaders...")
 
-    # With cached datasets, use num_workers=0 (data already in RAM)
-    # DataLoader just batches the preloaded images - very fast!
-    # pin_memory=True for faster CPU->GPU transfer
+    # Streaming mode (no cache): Use workers for parallel data loading
+    # Cached mode: Use num_workers=0 (data already in RAM)
+    if Config.CACHE_DATASET:
+        num_workers = 0
+        prefetch_factor = None
+        persistent_workers = False
+        mode = "cached"
+    else:
+        # Streaming mode: Parallel data loading to keep GPU fed
+        # num_workers: 2-4 works well on Kaggle
+        # prefetch_factor: 2 prefetches 2 batches per worker
+        num_workers = 2 if Config.DEVICE.type == "cuda" else 0
+        prefetch_factor = 2 if num_workers > 0 else None
+        persistent_workers = True if num_workers > 0 else False
+        mode = "streaming"
 
     train_loader = DataLoader(
         train_dataset,
         batch_size=Config.BATCH_SIZE,
-        shuffle=True,  # Shuffle is fast with cached data
-        num_workers=0,  # No need for workers with cached data
+        shuffle=True,
+        num_workers=num_workers,
         pin_memory=True if Config.DEVICE.type == "cuda" else False,
+        prefetch_factor=prefetch_factor,
+        persistent_workers=persistent_workers,
     )
 
     val_loader = DataLoader(
         val_dataset,
         batch_size=Config.BATCH_SIZE,
         shuffle=False,
-        num_workers=0,
+        num_workers=num_workers,
         pin_memory=True if Config.DEVICE.type == "cuda" else False,
+        prefetch_factor=prefetch_factor,
+        persistent_workers=persistent_workers,
     )
 
     test_loader = DataLoader(
         test_dataset,
         batch_size=Config.BATCH_SIZE,
         shuffle=False,
-        num_workers=0,
+        num_workers=num_workers,
         pin_memory=True if Config.DEVICE.type == "cuda" else False,
+        prefetch_factor=prefetch_factor,
+        persistent_workers=persistent_workers,
     )
 
-    print("✅ Data loaders created (cached mode - lightning fast!)")
+    print(f"✅ Data loaders created ({mode} mode)")
     print(f"   - batch_size: {Config.BATCH_SIZE}")
-    print("   - num_workers: 0 (data cached in RAM)")
+    print(f"   - num_workers: {num_workers}")
+    if prefetch_factor:
+        print(f"   - prefetch_factor: {prefetch_factor}")
     print(f"   - pin_memory: {Config.DEVICE.type == 'cuda'}")
 
     return train_loader, val_loader, test_loader
