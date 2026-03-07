@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Face Detector - Detect AI-Generated Faces</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+        * {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .gradient-text {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .upload-zone {
+            transition: all 0.3s ease;
+            border: 2px dashed #cbd5e1;
+        }
+
+        .upload-zone:hover, .upload-zone.dragover {
+            border-color: #667eea;
+            background-color: #f8fafc;
+        }
+
+        .upload-zone.dragover {
+            transform: scale(1.02);
+        }
+
+        .pulse-animation {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: .5;
+            }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .confidence-bar {
+            transition: width 1s ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <header class="gradient-bg text-white py-6 shadow-lg">
+        <div class="container mx-auto px-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <i class="fas fa-brain text-3xl"></i>
+                    <div>
+                        <h1 class="text-2xl md:text-3xl font-bold">AI Face Detector</h1>
+                        <p class="text-sm text-purple-100">Detect AI-Generated Faces with High Accuracy</p>
+                    </div>
+                </div>
+                <a href="https://github.com/furkankoykiran/ai-face-detector" target="_blank"
+                   class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition flex items-center space-x-2">
+                    <i class="fab fa-github"></i>
+                    <span class="hidden sm:inline">GitHub</span>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8 max-w-4xl">
+        <!-- Upload Section -->
+        <div class="bg-white rounded-2xl shadow-xl p-6 md:p-8 mb-8 fade-in">
+            <div class="text-center mb-8">
+                <h2 class="text-3xl font-bold gradient-text mb-2">Is This Face Real or AI-Generated?</h2>
+                <p class="text-gray-600">Upload a face image and let our AI detect if it's real or created by AI</p>
+            </div>
+
+            <!-- Upload Zone -->
+            <div id="uploadZone" class="upload-zone rounded-xl p-8 md:p-12 text-center cursor-pointer mb-6">
+                <input type="file" id="fileInput" accept="image/*" class="hidden">
+                <div id="uploadContent">
+                    <i class="fas fa-cloud-upload-alt text-6xl text-gray-300 mb-4"></i>
+                    <h3 class="text-xl font-semibold text-gray-700 mb-2">Drag & Drop an Image Here</h3>
+                    <p class="text-gray-500 mb-4">or click to browse</p>
+                    <div class="flex items-center justify-center space-x-2 text-sm text-gray-400">
+                        <i class="fas fa-image"></i>
+                        <span>JPG, PNG, WEBP up to 5MB</span>
+                    </div>
+                </div>
+                <div id="previewContent" class="hidden">
+                    <img id="previewImage" class="max-h-64 mx-auto rounded-lg shadow-lg mb-4" alt="Preview">
+                    <p id="fileName" class="text-gray-600 text-sm"></p>
+                </div>
+            </div>
+
+            <!-- Analyze Button -->
+            <button id="analyzeBtn" disabled
+                    class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-semibold py-4 px-6 rounded-xl transition shadow-lg disabled:cursor-not-allowed">
+                <span id="btnText"><i class="fas fa-search mr-2"></i>Analyze Image</span>
+                <span id="btnLoading" class="hidden">
+                    <i class="fas fa-spinner fa-spin mr-2"></i>Analyzing...
+                </span>
+            </button>
+        </div>
+
+        <!-- Results Section -->
+        <div id="resultsSection" class="hidden bg-white rounded-2xl shadow-xl p-6 md:p-8 mb-8 fade-in">
+            <div class="text-center mb-6">
+                <div id="resultIcon" class="text-6xl mb-4"></div>
+                <h3 id="resultTitle" class="text-2xl font-bold mb-2"></h3>
+                <p id="resultSubtitle" class="text-gray-600"></p>
+            </div>
+
+            <!-- Confidence Bar -->
+            <div class="mb-6">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-sm font-medium text-gray-700">Confidence</span>
+                    <span id="confidenceValue" class="text-sm font-bold text-purple-600"></span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                    <div id="confidenceBar" class="confidence-bar h-full rounded-full"></div>
+                </div>
+            </div>
+
+            <!-- Stats Grid -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="bg-gray-50 rounded-lg p-4 text-center">
+                    <i class="fas fa-clock text-purple-600 mb-2"></i>
+                    <p class="text-sm text-gray-600">Inference Time</p>
+                    <p id="inferenceTime" class="font-bold text-gray-800"></p>
+                </div>
+                <div class="bg-gray-50 rounded-lg p-4 text-center">
+                    <i class="fas fa-expand-alt text-purple-600 mb-2"></i>
+                    <p class="text-sm text-gray-600">Image Size</p>
+                    <p id="imageSize" class="font-bold text-gray-800"></p>
+                </div>
+                <div class="bg-gray-50 rounded-lg p-4 text-center">
+                    <i class="fas fa-robot text-purple-600 mb-2"></i>
+                    <p class="text-sm text-gray-600">AI Probability</p>
+                    <p id="aiProb" class="font-bold text-gray-800"></p>
+                </div>
+                <div class="bg-gray-50 rounded-lg p-4 text-center">
+                    <i class="fas fa-user text-purple-600 mb-2"></i>
+                    <p class="text-sm text-gray-600">Real Probability</p>
+                    <p id="realProb" class="font-bold text-gray-800"></p>
+                </div>
+            </div>
+
+            <!-- Try Again Button -->
+            <button id="tryAgainBtn"
+                    class="w-full mt-6 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 px-6 rounded-xl transition">
+                <i class="fas fa-redo mr-2"></i>Try Another Image
+            </button>
+        </div>
+
+        <!-- Error Section -->
+        <div id="errorSection" class="hidden bg-red-50 border border-red-200 rounded-2xl p-6 mb-8 fade-in">
+            <div class="flex items-start space-x-4">
+                <i class="fas fa-exclamation-circle text-red-500 text-2xl mt-1"></i>
+                <div>
+                    <h3 class="text-lg font-semibold text-red-800 mb-1">Error</h3>
+                    <p id="errorMessage" class="text-red-700"></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Info Section -->
+        <div class="grid md:grid-cols-3 gap-6">
+            <div class="bg-white rounded-xl shadow-lg p-6 fade-in">
+                <div class="text-center">
+                    <div class="bg-purple-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-brain text-2xl text-purple-600"></i>
+                    </div>
+                    <h3 class="font-bold text-gray-800 mb-2">Powered by AI</h3>
+                    <p class="text-sm text-gray-600">Uses MobileNetV2 with transfer learning for high accuracy detection</p>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl shadow-lg p-6 fade-in">
+                <div class="text-center">
+                    <div class="bg-indigo-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-bolt text-2xl text-indigo-600"></i>
+                    </div>
+                    <h3 class="font-bold text-gray-800 mb-2">Lightning Fast</h3>
+                    <p class="text-sm text-gray-600">Get results in under 100ms with our optimized inference pipeline</p>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl shadow-lg p-6 fade-in">
+                <div class="text-center">
+                    <div class="bg-pink-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-shield-alt text-2xl text-pink-600"></i>
+                    </div>
+                    <h3 class="font-bold text-gray-800 mb-2">Privacy First</h3>
+                    <p class="text-sm text-gray-600">Images are processed locally and never stored on our servers</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 text-white py-8 mt-12">
+        <div class="container mx-auto px-4 text-center">
+            <div class="flex items-center justify-center space-x-2 mb-4">
+                <i class="fas fa-brain text-2xl"></i>
+                <span class="text-xl font-bold">AI Face Detector</span>
+            </div>
+            <p class="text-gray-400 text-sm mb-4">
+                Built with PyTorch, FastAPI, and Tailwind CSS
+            </p>
+            <div class="flex justify-center space-x-4">
+                <a href="https://github.com/furkankoykiran/ai-face-detector" target="_blank"
+                   class="text-gray-400 hover:text-white transition">
+                    <i class="fab fa-github text-xl"></i>
+                </a>
+                <a href="#" class="text-gray-400 hover:text-white transition">
+                    <i class="fas fa-file-alt text-xl"></i>
+                </a>
+            </div>
+            <p class="text-gray-500 text-xs mt-4">
+                © 2024 AI Face Detector. MIT License.
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        const API_URL = 'http://localhost:8000';
+        let selectedFile = null;
+
+        // DOM Elements
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+        const uploadContent = document.getElementById('uploadContent');
+        const previewContent = document.getElementById('previewContent');
+        const previewImage = document.getElementById('previewImage');
+        const fileName = document.getElementById('fileName');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const btnText = document.getElementById('btnText');
+        const btnLoading = document.getElementById('btnLoading');
+        const resultsSection = document.getElementById('resultsSection');
+        const errorSection = document.getElementById('errorSection');
+        const tryAgainBtn = document.getElementById('tryAgainBtn');
+
+        // Upload Zone Events
+        uploadZone.addEventListener('click', () => fileInput.click());
+
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        // Handle File Selection
+        function handleFile(file) {
+            // Validate file type
+            if (!file.type.startsWith('image/')) {
+                showError('Please upload an image file (JPG, PNG, or WEBP)');
+                return;
+            }
+
+            // Validate file size (5MB)
+            if (file.size > 5 * 1024 * 1024) {
+                showError('File size must be less than 5MB');
+                return;
+            }
+
+            selectedFile = file;
+
+            // Show preview
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                previewImage.src = e.target.result;
+                fileName.textContent = file.name;
+                uploadContent.classList.add('hidden');
+                previewContent.classList.remove('hidden');
+                analyzeBtn.disabled = false;
+            };
+            reader.readAsDataURL(file);
+
+            // Hide previous results/errors
+            resultsSection.classList.add('hidden');
+            errorSection.classList.add('hidden');
+        }
+
+        // Analyze Button
+        analyzeBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+
+            // Show loading state
+            btnText.classList.add('hidden');
+            btnLoading.classList.remove('hidden');
+            analyzeBtn.disabled = true;
+
+            try {
+                const formData = new FormData();
+                formData.append('file', selectedFile);
+
+                const response = await fetch(`${API_URL}/detect`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to analyze image');
+                }
+
+                const result = await response.json();
+                showResults(result);
+            } catch (error) {
+                showError(error.message || 'An error occurred while analyzing the image');
+            } finally {
+                btnText.classList.remove('hidden');
+                btnLoading.classList.add('hidden');
+                analyzeBtn.disabled = false;
+            }
+        });
+
+        // Show Results
+        function showResults(result) {
+            const isAI = result.result === 'AI_GENERATED';
+            const confidence = result.confidence * 100;
+
+            // Set result styling
+            if (isAI) {
+                document.getElementById('resultIcon').innerHTML = '<i class="fas fa-robot"></i>';
+                document.getElementById('resultIcon').className = 'text-6xl mb-4 text-red-500';
+                document.getElementById('resultTitle').textContent = 'AI-Generated Face';
+                document.getElementById('resultTitle').className = 'text-2xl font-bold mb-2 text-red-600';
+                document.getElementById('confidenceBar').className = 'confidence-bar h-full rounded-full bg-gradient-to-r from-red-500 to-red-600';
+            } else {
+                document.getElementById('resultIcon').innerHTML = '<i class="fas fa-user-check"></i>';
+                document.getElementById('resultIcon').className = 'text-6xl mb-4 text-green-500';
+                document.getElementById('resultTitle').textContent = 'Real Face';
+                document.getElementById('resultTitle').className = 'text-2xl font-bold mb-2 text-green-600';
+                document.getElementById('confidenceBar').className = 'confidence-bar h-full rounded-full bg-gradient-to-r from-green-500 to-green-600';
+            }
+
+            document.getElementById('resultSubtitle').textContent =
+                `This image is ${isAI ? 'AI-generated' : 'a real face'} with ${confidence.toFixed(1)}% confidence`;
+
+            // Set confidence bar
+            document.getElementById('confidenceValue').textContent = `${confidence.toFixed(1)}%`;
+            setTimeout(() => {
+                document.getElementById('confidenceBar').style.width = `${confidence}%`;
+            }, 100);
+
+            // Set stats
+            document.getElementById('inferenceTime').textContent = `${result.inference_time_ms}ms`;
+            document.getElementById('imageSize').textContent = result.image_size;
+            document.getElementById('aiProb').textContent = `${(result.probabilities.AI_GENERATED * 100).toFixed(1)}%`;
+            document.getElementById('realProb').textContent = `${(result.probabilities.REAL * 100).toFixed(1)}%`;
+
+            // Show results section
+            resultsSection.classList.remove('hidden');
+            errorSection.classList.add('hidden');
+        }
+
+        // Show Error
+        function showError(message) {
+            document.getElementById('errorMessage').textContent = message;
+            errorSection.classList.remove('hidden');
+            resultsSection.classList.add('hidden');
+        }
+
+        // Try Again Button
+        tryAgainBtn.addEventListener('click', () => {
+            selectedFile = null;
+            uploadContent.classList.remove('hidden');
+            previewContent.classList.add('hidden');
+            previewImage.src = '';
+            fileInput.value = '';
+            analyzeBtn.disabled = true;
+            resultsSection.classList.add('hidden');
+            errorSection.classList.add('hidden');
+        });
+
+        // Check API health on load
+        async function checkHealth() {
+            try {
+                const response = await fetch(`${API_URL}/health`);
+                if (response.ok) {
+                    console.log('✓ API is healthy');
+                } else {
+                    console.warn('⚠ API health check failed');
+                }
+            } catch (error) {
+                console.error('✗ Cannot connect to API. Make sure the backend is running.');
+            }
+        }
+
+        checkHealth();
+    </script>
+</body>
+</html>
