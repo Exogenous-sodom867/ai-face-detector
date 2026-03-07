@@ -89,54 +89,53 @@ def find_dataset_path() -> Path:
 
     base_path = Config.DATA_PATH
 
-    # List all directories in /kaggle/input
-    try:
-        contents = os.listdir(base_path)
-        print(f"\n📁 Contents of {base_path}:")
+    # Recursively search for the dataset
+    def find_real_vs_fake_recursive(current_path: Path, depth: int = 0) -> Path:
+        """Recursively search for real_vs_fake directory."""
+        if depth > 5:  # Limit recursion depth
+            return None
+
+        try:
+            contents = os.listdir(current_path)
+        except:
+            return None
+
+        # Check if this directory contains train/real and train/fake
+        train_real = current_path / "train" / "real"
+        train_fake = current_path / "train" / "fake"
+
+        if train_real.exists() and train_fake.exists():
+            return current_path
+
+        # Recursively search subdirectories
         for item in contents:
-            print(f"  - {item}")
-    except Exception as e:
-        raise ValueError(f"❌ Cannot access {base_path}: {e}")
+            item_path = current_path / item
+            if item_path.is_dir() and not item.startswith("."):
+                result = find_real_vs_fake_recursive(item_path, depth + 1)
+                if result:
+                    return result
 
-    # Search for dataset directories
-    possible_paths = [
-        base_path / "140k-real-and-fake-faces",
-        base_path / "real-vs-fake",
-        base_path / "real_and_fake",
-    ]
+        return None
 
-    # Also check in subdirectories
-    for item in contents:
-        item_path = base_path / item
-        if item_path.is_dir():
-            # Check if this directory contains 'real_vs_fake' or similar
-            for subitem in os.listdir(item_path):
-                if "real" in subitem.lower() and "fake" in subitem.lower():
-                    possible_paths.append(item_path / subitem)
-                elif (
-                    "real_vs_fake" in subitem.lower()
-                    or "real-vs-fake" in subitem.lower()
-                ):
-                    possible_paths.append(item_path / subitem)
+    # Start recursive search
+    print(f"\n🔎 Searching for dataset in {base_path}...")
+    dataset_path = find_real_vs_fake_recursive(base_path)
 
-    # Try each possible path
-    for path in possible_paths:
-        if path.exists():
-            print(f"\n✅ Found dataset at: {path}")
+    if dataset_path:
+        print(f"\n✅ Found dataset at: {dataset_path}")
 
-            # Check for expected structure
-            train_real = path / "train" / "real"
-            train_fake = path / "train" / "fake"
+        # Verify structure
+        train_real = dataset_path / "train" / "real"
+        train_fake = dataset_path / "train" / "fake"
 
-            if train_real.exists() and train_fake.exists():
-                print("✅ Dataset structure verified!")
-                print(
-                    f"   - Train real: {len(list(train_real.glob('*.jpg'))):,} images"
-                )
-                print(
-                    f"   - Train fake: {len(list(train_fake.glob('*.jpg'))):,} images"
-                )
-                return path
+        real_count = len(list(train_real.glob("*.jpg")))
+        fake_count = len(list(train_fake.glob("*.jpg")))
+
+        print("✅ Dataset structure verified!")
+        print(f"   - Train real: {real_count:,} images")
+        print(f"   - Train fake: {fake_count:,} images")
+
+        return dataset_path
 
     # If not found, raise error with guidance
     raise ValueError(
