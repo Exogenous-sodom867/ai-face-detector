@@ -102,22 +102,30 @@ The training script (`training/train.py`) automatically detects and works with:
 1. Open [Colab](https://colab.research.google.com/)
 2. Enable GPU runtime
 3. Clone repo: `!git clone https://github.com/furkankoykiran/ai-face-detector.git`
-4. Run: `!python training/train.py --data_path /content/data`
+4. Setup Kaggle API: Upload `kaggle.json` and configure
+5. Download dataset: `!kaggle datasets download -d xhlulu/140k-real-and-fake-faces`
+6. Run: `!python training/train.py --data_path /content/data`
 
-### Performance Optimizations
+### Performance Optimizations (2025 Update)
 
 The training script includes these optimizations:
 
-- ✅ **Cached Dataset**: Load all images into RAM (~5GB)
+- ✅ **Environment Auto-Detection**: Kaggle/Colab/Local (automatic paths)
+- ✅ **Streaming DataLoader**: No RAM overflow, 2 workers (Colab optimized)
 - ✅ **Multi-GPU**: Automatic DataParallel for 2+ GPUs
-- ✅ **Mixed Precision**: AMP for 2-3x speedup
-- ✅ **Large Batch**: Batch size 256 for dual GPU
-- ✅ **Auto-Detection**: Finds dataset automatically
+- ✅ **Mixed Precision (AMP)**: 2-3x speedup with fp16
+- ✅ **Optimal Batch Size**: 256 for T4 GPU (stable, no OOM)
+- ✅ **Pin Memory**: Faster CPU-to-GPU transfer
+- ✅ **Prefetch Factor**: 2 - Preloads batches for smooth training
+- ✅ **Dataset Auto-Detection**: Recursive search for 140k/GRAVEX-200K
+- ✅ **Deprecated APIs Fixed**: Uses PyTorch 0.13+ weights API
 
 **Expected training time:**
-- Kaggle T4 x2: ~43 minutes (23 min cache + 20 min train)
-- Colab T4: ~60 minutes
+- Kaggle T4 x2: ~50 minutes (~1.1-1.3 it/s)
+- Colab T4: ~60 minutes (~1.1-1.3 it/s)
 - CPU: ~4-6 hours (not recommended)
+
+**Training Speed:** ~1.1-1.3 iterations/second on T4 GPU
 
 ## 📡 API Documentation
 

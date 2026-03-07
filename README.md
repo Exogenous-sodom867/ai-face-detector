@@ -26,7 +26,8 @@ AI Face Detector is a lightweight, highly accurate API and web interface that de
 - **☁️ Cloud Ready**: Training script optimized for Google Colab/Kaggle
 - **📊 Comprehensive**: Training history, evaluation metrics, and visualizations
 - **🚀 GPU Optimized**: Multi-GPU support with mixed precision training
-- **💾 Cached Dataset**: Load 100K images into RAM for 30x faster training
+- **⚡ Streaming DataLoader**: Optimized for Colab/Kaggle (2 workers, no RAM overflow)
+- **🎯 Environment Auto-Detection**: Automatically detects Kaggle/Colab/Local environments
 
 ## 🎯 Use Cases
 
@@ -117,11 +118,13 @@ poetry install
 
 **GPU Optimizations:**
 - ✅ Auto-detects dataset type (140k or GRAVEX-200K)
-- ✅ Cached dataset (100K+ images in RAM)
+- ✅ Environment auto-detection (Kaggle/Colab/Local)
+- ✅ Streaming DataLoader (2 workers - Colab optimized)
 - ✅ Multi-GPU training (DataParallel)
 - ✅ Mixed precision (AMP) - 2-3x faster
-- ✅ Large batch size (256) - better GPU utilization
-- ✅ Simplified augmentation - reduces CPU bottleneck
+- ✅ Optimal batch size (256) - stable on T4 GPU
+- ✅ Pin memory & prefetch - faster data loading
+- ✅ No worker warnings - CPU-optimized configuration
 
 **Option B: Google Colab Training**
 
