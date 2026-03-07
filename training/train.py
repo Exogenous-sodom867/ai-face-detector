@@ -70,8 +70,9 @@ class Config:
     CACHE_DATASET = False  # Don't cache (use streaming to avoid RAM issues)
 
     # DataLoader optimization
-    NUM_WORKERS = 4  # Increased from 2 for better CPU utilization
-    PREFETCH_FACTOR = 4  # Increased from 2 for faster data loading
+    NUM_WORKERS = 2  # Optimal for Colab (2 CPUs) - prevents worker warning
+    PREFETCH_FACTOR = 2  # Prefetch batches for faster data loading
+    # Note: Colab has 2 CPUs, Kaggle has 4 CPUs. num_workers > CPUs causes slowdown
 
     # Data augmentation
     IMAGE_SIZE = 224  # MobileNetV2 input size
@@ -478,6 +479,21 @@ def create_model() -> nn.Module:
         model = model.to(Config.DEVICE)
     else:
         model = model.to(Config.DEVICE)
+
+    # PyTorch 2.0+ optimization: torch.compile() for 20-30% speedup
+    # Best practice from PyTorch team - compile model after moving to device
+    try:
+        if hasattr(torch, "compile"):
+            # mode="reduce-overhead" is best for inference, "max-autotune" for training
+            # We use default mode which balances both
+            print("\n⚡ Compiling model with torch.compile() (PyTorch 2.0+)...")
+            model = torch.compile(model)
+            print("✅ Model compiled - expecting 20-30% speedup")
+        else:
+            print("\n⚠️  PyTorch < 2.0, skipping torch.compile()")
+    except Exception as e:
+        print(f"\n⚠️  torch.compile() failed: {e}")
+        print("Continuing without compilation...")
 
     # Count parameters
     total_params = sum(p.numel() for p in model.parameters())
